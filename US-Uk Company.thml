@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: A dashboard-style SPA. The top level features key metric cards (Total Companies by country) and primary filters (Country, Sector). The main view is an interactive grid of company cards, which are dynamically updated by the filters. Clicking a card opens a modal with detailed information, including a summary and specific marketing/PR needs, and now turnover. A bar chart visualizes the distribution of companies by sector. This structure was chosen to transform the dense report into an actionable tool, allowing users to quickly identify and drill down into relevant business opportunities rather than reading linearly. The user flow is designed for exploration and discovery. -->
+    <!-- Visualization & Content Choices: 
+        - Key Metrics (Total Companies): Goal: Inform. Method: HTML/CSS cards. Interaction: Updates with filters. Justification: Quick, high-level overview.
+        - Company Database: Goal: Organize/Compare. Method: HTML/CSS/JS grid of cards. Interaction: Filters (Country, Sector, Search), click to see details. Justification: The core interactive element for prospect identification.
+        - Sector Distribution: Goal: Compare. Method: Chart.js Bar Chart. Interaction: Updates with country filter. Justification: Visualizes sector concentration of opportunities.
+        - Company Details: Goal: Inform. Method: JS-powered Modal. Interaction: Open/Close. Justification: Provides deep-dive information without leaving the main dashboard. Now includes turnover data for enhanced context.
+        - Market Context: Goal: Inform. Method: HTML/CSS Accordion. Interaction: Expand/Collapse. Justification: Keeps essential background info accessible but unobtrusive.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <title>US & UK Business Expansion in India: Opportunity Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 300ms, transform 300ms;
+        }
+        .modal-leave {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .modal-leave-active {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 300ms, transform 300ms;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">US & UK Business Expansion in India</h1>
+            <p class="mt-2 text-lg text-slate-600 max-w-3xl mx-auto">An interactive dashboard to explore companies entering or expanding in the Indian market, identifying opportunities for marketing and PR partnerships.</p>
+        </header>
+
+        <main>
+            <section id="dashboard" class="mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-slate-500">Total Companies</h3>
+                        <p id="total-companies" class="text-4xl font-bold text-sky-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-slate-500">US Companies</h3>
+                        <p id="us-companies" class="text-4xl font-bold text-blue-700 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg shadow-md text-center">
+                        <h3 class="text-lg font-semibold text-slate-500">UK Companies</h3>
+                        <p id="uk-companies" class="text-4xl font-bold text-red-700 mt-2">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-md mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="country-filter" class="block text-sm font-medium text-slate-700 mb-1">Filter by Country</label>
+                            <select id="country-filter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                                <option value="all">All Countries</option>
+                                <option value="US">United States</option>
+                                <option value="UK">United Kingdom</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="sector-filter" class="block text-sm font-medium text-slate-700 mb-1">Filter by Sector</label>
+                            <select id="sector-filter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                                <option value="all">All Sectors</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="search-input" class="block text-sm font-medium text-slate-700 mb-1">Search Company</label>
+                            <input type="text" id="search-input" placeholder="e.g., Apple, Diageo..." class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="company-grid-section" class="mb-12">
+                 <h2 class="text-2xl font-bold text-slate-900 mb-4">Identified Companies</h2>
+                 <p id="results-count" class="text-slate-600 mb-6">Showing 0 results.</p>
+                 <div id="company-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                 </div>
+                 <p id="no-results" class="hidden text-center text-slate-500 py-10">No companies match the current filters.</p>
+            </section>
+
+            <section id="charts-section" class="mb-12 bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-slate-900 mb-2 text-center">Opportunities by Sector</h2>
+                <p class="text-slate-600 max-w-2xl mx-auto text-center mb-6">This chart illustrates the number of identified companies expanding into India, broken down by their primary sector. Use the country filter above to see the distribution for the US, UK, or both.</p>
+                <div class="chart-container">
+                    <canvas id="sector-chart"></canvas>
+                </div>
+            </section>
+            
+            <section id="context-section">
+                <h2 class="text-2xl font-bold text-slate-900 mb-4 text-center">Market Context & Drivers</h2>
+                <div class="max-w-4xl mx-auto">
+                    <div class="accordion-item bg-white rounded-lg shadow-md mb-3">
+                        <button class="accordion-header w-full text-left p-4 font-semibold text-lg flex justify-between items-center hover:bg-slate-100 transition-colors">
+                            <span>Economic Growth & Market Potential</span>
+                            <span class="accordion-icon transform transition-transform">▼</span>
+                        </button>
+                        <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                            <div class="p-4 border-t border-slate-200">
+                                <p class="text-slate-700">India's economy is on a strong growth trajectory, with its GDP exceeding £3 trillion and projected to grow at 5% annually. This economic expansion is creating a massive consumer market, expected to be the world's second-largest by 2030. The burgeoning middle class and rising disposable incomes are fueling demand for global brands, transforming India from a manufacturing hub into a primary consumer market. This shift requires foreign companies to invest heavily in localized brand building and consumer-facing marketing to capture significant market share.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item bg-white rounded-lg shadow-md mb-3">
+                        <button class="accordion-header w-full text-left p-4 font-semibold text-lg flex justify-between items-center hover:bg-slate-100 transition-colors">
+                            <span>Impact of the India-UK Free Trade Agreement (FTA)</span>
+                            <span class="accordion-icon transform transition-transform">▼</span>
+                        </button>
+                        <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                            <div class="p-4 border-t border-slate-200">
+                                <p class="text-slate-700">The India-UK FTA is a landmark deal set to boost bilateral trade by $34 billion. It significantly reduces tariffs on UK products, making them more competitive. Duties on key exports like Scotch whisky will drop from 150% to 40% over time, and luxury car duties will be slashed from over 100% to 10% under a quota system. This creates a highly favorable environment for UK brands in sectors like Food & Drink, Automotive, and Consumer Goods to expand aggressively, supported by increased marketing investment budgets due to lower operational costs.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item bg-white rounded-lg shadow-md mb-3">
+                        <button class="accordion-header w-full text-left p-4 font-semibold text-lg flex justify-between items-center hover:bg-slate-100 transition-colors">
+                            <span>US-India Trade Dynamics & 'China Plus One' Strategy</span>
+                            <span class="accordion-icon transform transition-transform">▼</span>
+                        </button>
+                        <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                            <div class="p-4 border-t border-slate-200">
+                                <p class="text-slate-700">The US-India trade relationship is robust but complex, marked by a recent 25% tariff on Indian imports. This challenges companies like Apple, which are pursuing a "China Plus One" strategy to diversify manufacturing and make India a major export hub. Despite tariff headwinds, the strategic imperative to de-risk supply chains from China keeps US investment strong, particularly in electronics manufacturing. US companies must therefore adopt agile PR strategies to manage narratives around supply chain shifts and focus marketing efforts on India's vast domestic market.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="modal-backdrop" class="hidden fixed inset-0 bg-black bg-opacity-60 z-40"></div>
+    <div id="company-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div id="modal-content" class="bg-white w-full max-w-2xl max-h-[90vh] rounded-lg shadow-2xl overflow-y-auto p-6 relative">
+             <button id="modal-close" class="absolute top-4 right-4 text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
+             <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        const companyData = [
+            { id: 1, name: "Apple", country: "US", sector: "Electronics", expansionType: "Major Investment", summary: "Significantly increased iPhone production in India, making it a strategic manufacturing hub for iPhone 16/17 series as part of its 'China Plus One' strategy.", marketingNeeds: ["Extensive brand building for new models", "Major product launch campaigns", "Digital and retail consumer engagement"], prNeeds: ["Corporate communications on supply chain shifts and tariffs", "Employer branding to attract manufacturing talent", "B2B PR for local supplier engagement"], turnover: "$391.035B (2024)" },
+            { id: 2, name: "Foxconn", country: "US", sector: "Electronics", expansionType: "Major Investment", summary: "Investing $1.48B for three new manufacturing plants to support Apple's needs and has received approval for India's first semiconductor unit.", marketingNeeds: ["B2B marketing to attract supply chain partners and clients for semiconductor fab"], prNeeds: ["Government and investor relations", "Industrial PR to showcase manufacturing capabilities", "Large-scale talent acquisition campaigns"], turnover: "Not readily available" },
+            { id: 3, name: "Samsung", country: "US", sector: "Electronics", expansionType: "Expansion", summary: "Reportedly exploring shifting some production to India to mitigate potential tariff risks and build on its already significant presence.", marketingNeeds: ["Sustained consumer electronics marketing to maintain market share", "Localized product campaigns"], prNeeds: ["Careful corporate communications to manage public perception of supply chain changes"], turnover: "$222.9B (2024)" },
+            { id: 4, name: "Google (Pixel)", country: "US", sector: "Electronics", expansionType: "New Entry", summary: "Initiated discussions with Indian manufacturers to shift some Pixel smartphone production for US-bound devices.", marketingNeeds: ["Product launch and brand awareness campaigns for Pixel in India", "Digital marketing to target tech enthusiasts"], prNeeds: ["B2B PR to announce and manage manufacturing partnerships"], turnover: "$350.02B (2024)" },
+            { id: 5, name: "Microsoft", country: "US", sector: "Technology", expansionType: "Major Investment", summary: "Investing $3B to expand its cloud and AI infrastructure in India with new data centers, driven by the country's digital push.", marketingNeeds: ["B2B marketing targeting enterprises for cloud and AI solutions", "Content marketing on digital transformation"], prNeeds: ["Thought leadership PR to position as an AI leader", "Strong employer branding to attract top tech talent"], turnover: "$245.122B (2024)" },
+            { id: 6, name: "Amazon", country: "US", sector: "E-commerce/Cloud", expansionType: "Major Investment", summary: "Investing an additional $8.2B in AWS (cloud) and $233M in operations infrastructure, driven by demand for local data storage for AI.", marketingNeeds: ["Robust consumer marketing for e-commerce services", "B2B marketing for AWS cloud solutions"], prNeeds: ["PR focused on logistics, job creation, and CSR", "Corporate communications on investment impact"], turnover: "$637.959B (2024)" },
+            { id: 7, name: "Eli Lilly and Company", country: "US", sector: "Pharma/Healthcare", expansionType: "New Entry", summary: "Establishing a new global capability center (GCC) in Hyderabad and planning to launch new medicines in the Indian market.", marketingNeeds: ["Strategic product launch marketing for new medicines", "B2B engagement with the healthcare professional community"], prNeeds: ["Employer branding to attract talent for the new GCC", "Proactive regulatory and public affairs PR"], turnover: "$45.043B (2024)" },
+            { id: 8, name: "W Health Ventures", country: "US", sector: "Healthcare VC", expansionType: "New Entry", summary: "Raising a $70M India-focused fund to back 8-10 seed and early-stage healthtech startups, focusing on AI-enabled B2B services.", marketingNeeds: ["Marketing of the VC fund to attract promising startups", "B2B marketing of portfolio companies"], prNeeds: ["Announcing fund closes and portfolio successes", "Thought leadership on healthtech investment trends"], turnover: "Fund II: $70M target (AUM)" },
+            { id: 9, name: "Papa John's", country: "US", sector: "Retail (F&B)", expansionType: "New Entry", summary: "Re-entering the Indian market with a planned 2025 launch, collaborating with Indian franchisees to establish a physical retail presence.", marketingNeeds: ["Comprehensive brand re-launch campaign", "Localized store marketing and promotions", "Digital marketing for online ordering"], prNeeds: ["Franchise development PR to attract new partners", "Media relations for the re-entry announcement"], turnover: "$2.06B (2024)" },
+            { id: 10, name: "Little Caesars", country: "US", sector: "Retail (F&B)", expansionType: "New Entry", summary: "Expanded into India in 2025, opening its first restaurant in Delhi NCR with a localized menu and value-driven pricing.", marketingNeeds: ["Targeted new market entry campaigns", "Product marketing highlighting localized menu items", "Consumer engagement to drive footfall"], prNeeds: ["Local launch event PR", "Community engagement and media outreach"], turnover: "$17.7B (Estimated Annual)" },
+            { id: 11, name: "Abercrombie & Fitch", country: "US", sector: "Retail (Fashion)", expansionType: "New Entry", summary: "Slated to launch in India via the e-commerce platform Myntra, targeting affluent and Gen Z consumers.", marketingNeeds: ["Strong digital-first marketing strategy", "Social media and influencer collaborations", "Brand positioning for the Indian youth market"], prNeeds: ["E-commerce partnership announcements", "Fashion and lifestyle media outreach"], turnover: "₹424.52B (2024)" },
+            { id: 12, name: "Hollister", country: "US", sector: "Retail (Fashion)", expansionType: "New Entry", summary: "Launching alongside Abercrombie & Fitch on Myntra to tap into the growing demand for global fashion brands among young Indians.", marketingNeeds: ["Digital marketing focused on Gen Z", "Influencer-led campaigns", "Online brand building"], prNeeds: ["Joint PR with Myntra for the launch", "Targeted media placement in youth-focused publications"], turnover: "Not readily available" },
+            { id: 13, name: "Foot Locker", country: "US", sector: "Retail (Footwear)", expansionType: "New Entry", summary: "Debuted in India in 2024 through an omnichannel partnership with Metro Brands (offline) and Nykaa Fashion (online).", marketingNeeds: ["Integrated launch campaigns across online and offline channels", "Youth and lifestyle marketing", "Sneaker culture engagement"], prNeeds: ["PR to highlight strategic partnerships", "Brand visibility campaigns in fashion and lifestyle media"], turnover: "₹685.26B (2024)" },
+            { id: 14, name: "Delilah", country: "UK", sector: "Cosmetics", expansionType: "New Entry", summary: "A luxury, cruelty-free, and vegan cosmetics brand announcing its launch and partnerships in India, showcased at Cosmoprof India 2024.", marketingNeeds: ["Brand launch campaigns emphasizing ethical positioning", "Influencer marketing for product promotion", "Premium digital content"], prNeeds: ["PR to announce distribution partnerships", "Media outreach focused on beauty and sustainability press"], turnover: "Under £1M (2024)" },
+            { id: 15, name: "Eve Taylor", country: "UK", sector: "Cosmetics", expansionType: "New Entry", summary: "A professional skincare brand that has secured a new distribution deal for India and was featured at Cosmoprof India 2024.", marketingNeeds: ["Targeted B2B marketing to salons, spas, and aesthetic clinics", "Product education and professional training programs"], prNeeds: ["PR highlighting eco-conscious practices and sustainability", "Announcements of distribution deals in trade media"], turnover: "Not readily available" },
+            { id: 16, name: "Dr. PAWPAW", country: "UK", sector: "Cosmetics", expansionType: "New Entry", summary: "A multi-award-winning cosmetic range that has partnered with Kanvar Group for distribution and is actively implementing launch plans.", marketingNeeds: ["Focused product launch and consumer marketing", "Digital campaigns to drive visibility for its multipurpose products", "Retail point-of-sale marketing"], prNeeds: ["PR for the distribution partnership", "Leveraging celebrity and makeup artist endorsements"], turnover: "Not readily available" },
+            { id: 17, name: "The Body Shop", country: "UK", sector: "Retail (Beauty)", expansionType: "Expansion", summary: "Revising its pricing strategy with a 'More Love for Less' campaign and adopting a digital-first approach to expand its customer base.", marketingNeeds: ["Rebranding campaigns to communicate the new value proposition", "Extensive digital marketing (SEO, social media, content)", "Omnichannel retail marketing"], prNeeds: ["PR focused on social activism and community initiatives", "Influencer and celebrity engagement for campaigns"], turnover: "$52.6M (India operations, 2024)" },
+            { id: 18, name: "Pret A Manger", country: "UK", sector: "Food & Drink", expansionType: "New Entry", summary: "Partnered with Reliance Brands Ltd. (RBL) to introduce its popular food chain in major Indian cities with a localized menu.", marketingNeeds: ["Grand opening campaigns for new stores", "Localized store marketing and menu promotions", "Brand experience marketing"], prNeeds: ["PR leveraging the high-profile partnership with Reliance", "Food and lifestyle PR highlighting fresh, handmade concept"], turnover: "£790.1M (2022)" },
+            { id: 19, name: "Diageo", country: "UK", sector: "Food & Drink", expansionType: "Expansion", summary: "Actively driving the premium whisky category, introducing local craft malts, expanding Guinness, and investing in Indian craft gin.", marketingNeeds: ["Sophisticated brand building for premium spirits", "Digital marketing for e-commerce and home consumption", "High-profile event marketing"], prNeeds: ["Responsible drinking campaigns (CSR)", "Public affairs and lobbying for alcohol policies", "Corporate PR for acquisitions"], turnover: "$20.269B (2024)" },
+            { id: 20, name: "Chivas Brothers", country: "UK", sector: "Food & Drink", expansionType: "Expansion", summary: "Reported 27% growth in India, driven by new Scotch audiences and premiumization, with plans for further product innovations.", marketingNeeds: ["Luxury brand marketing targeting affluent consumers", "Product innovation launch campaigns", "Experiential marketing and tasting events"], prNeeds: ["Trade and industry PR", "Media relations highlighting growth and success", "Brand heritage storytelling"], turnover: "$75M (Estimated Annual)" },
+            { id: 21, name: "Jaguar Land Rover (JLR)", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "Aims to double India sales by 2030, expanding its dealership network and introducing all-electric Range Rover models, benefiting from FTA.", marketingNeeds: ["Luxury automotive marketing, with a focus on EVs", "Experiential marketing (test drives, exclusive events)", "Targeted digital campaigns for HNWIs"], prNeeds: ["PR managing perceptions around FTA benefits and pricing", "Highlighting local production capabilities", "EV leadership communications"], turnover: "Not readily available" },
+            { id: 22, name: "Mini (BMW Mini)", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "Positioned to lead the premium EV segment with models like the Cooper SE, leveraging UK production and FTA-facilitated pricing.", marketingNeeds: ["Premium EV marketing campaigns", "Youth and lifestyle-focused branding", "Extensive digital and social media engagement"], prNeeds: ["New model launch PR", "Communications on sustainable mobility", "Targeted media outreach to auto and lifestyle press"], turnover: "Not readily available" },
+            { id: 23, name: "Asos", country: "UK", sector: "Retail (Fashion)", expansionType: "New Entry", summary: "The British online fast-fashion giant is in discussions with Reliance Retail to enter India through Ajio.com and Centro department stores.", marketingNeeds: ["Robust e-commerce launch campaigns", "Fashion influencer marketing at scale", "Digital brand awareness efforts to compete with incumbents"], prNeeds: ["Partnership announcements with Reliance", "Media relations with fashion and business press"], turnover: "Not readily available" },
+            { id: 24, name: "Rolls-Royce", country: "UK", sector: "Aerospace", expansionType: "Expansion", summary: "Securing significant contracts for aircraft engines with Indian airlines, expanding its presence in civil aviation and defense.", marketingNeeds: ["High-level B2B marketing to airlines and government bodies"], prNeeds: ["B2B and government relations PR", "Corporate reputation management", "Talent acquisition for high-skilled engineering roles"], turnover: "Not readily available" },
+            { id: 25, name: "Occuity", country: "UK", sector: "Healthcare Tech", expansionType: "New Entry", summary: "A UK AI healthcare company that has partnered with Remidio Innovative Solutions to bring non-invasive ophthalmic screening tech to India.", marketingNeeds: ["Medical device marketing to clinics and hospitals", "Public health awareness campaigns"], prNeeds: ["PR to promote the strategic partnership", "Innovation PR for its AI-based technology", "Thought leadership in med-tech"], turnover: "Not readily available" },
+            { id: 26, name: "Johnson & Johnson", country: "US", sector: "Pharma/Healthcare", expansionType: "Existing Operations", summary: "Maintains significant operations in India across pharmaceuticals, medical devices, and consumer health, with continuous need for market engagement.", marketingNeeds: ["Ongoing product marketing for various brands", "B2B marketing to healthcare professionals", "Consumer health campaigns"], prNeeds: ["Corporate reputation management", "Public health initiative PR", "Regulatory affairs communications"], turnover: "Not readily available" },
+            { id: 27, name: "Pfizer Inc.", country: "US", sector: "Pharma/Healthcare", expansionType: "Existing Operations", summary: "A major US pharmaceutical company with established operations in India, involved in both local market sales and global supply chains.", marketingNeeds: ["Product marketing for specific drugs", "B2B communications with medical community"], prNeeds: ["Corporate reputation and trust-building", "Navigating complex pharma regulations and trade policies"], turnover: "Not readily available" },
+            { id: 28, name: "Walmart Inc.", country: "US", sector: "Retail/Tech", expansionType: "Existing Operations", summary: "As a major investor in PhonePe and with ongoing supply chain optimization efforts, Walmart plays a significant role in India's digital ecosystem.", marketingNeeds: ["B2B and Fintech marketing for PhonePe", "Retail strategy communications"], prNeeds: ["Corporate communications on investments", "Supply chain and logistics PR", "Public affairs"], turnover: "Not readily available" },
+            { id: 29, name: "Coca Cola", country: "US", sector: "Food & Drink", expansionType: "Existing Operations", summary: "A dominant player in the Indian beverage market with extensive manufacturing and distribution networks, constantly launching new products.", marketingNeeds: ["Mass consumer marketing and advertising", "Brand activation and sponsorship", "New product launch campaigns"], prNeeds: ["Large-scale brand PR", "Corporate Social Responsibility (CSR) communications", "Crisis management"], turnover: "Not readily available" },
+            { id: 30, name: "PepsiCo", country: "US", sector: "Food & Drink", expansionType: "Existing Operations", summary: "Major presence in both beverage and snack markets (e.g., Doritos expansion), requiring continuous consumer engagement.", marketingNeeds: ["Integrated marketing campaigns for beverage and snack brands", "Youth-focused marketing", "Retail and trade marketing"], prNeeds: ["Brand activations and celebrity endorsement PR", "Sustainability and community-focused PR"], turnover: "Not readily available" },
+            { id: 31, name: "IBM", country: "US", sector: "Technology", expansionType: "Existing Operations", summary: "Maintains one of its largest operations outside the US in India, focusing on IT services, consulting, and digital transformation.", marketingNeeds: ["B2B marketing for IT services, AI, and cloud solutions", "Account-based marketing for large enterprises"], prNeeds: ["Thought leadership PR to position as an AI leader", "Corporate presence and employer branding", "Client success story PR"], turnover: "Not readily available" },
+            { id: 32, name: "Cisco", country: "US", sector: "Technology", expansionType: "Existing Operations", summary: "Operates its second-largest R&D facility in Bangalore, driving innovation in networking and software development for global markets.", marketingNeeds: ["B2B tech marketing for networking and security solutions", "Partner marketing with resellers and integrators"], prNeeds: ["PR highlighting R&D and innovation from India", "Corporate citizenship and talent development PR"], turnover: "Not readily available" },
+            { id: 33, "name": "Oracle", "country": "US", "sector": "Technology", "expansionType": "Existing Operations", "summary": "Significant presence in India, including Oracle Financial Services Software, providing enterprise software and cloud solutions.", "marketingNeeds": ["B2B marketing for enterprise software (ERP, CRM)", "Cloud solutions marketing to Indian businesses"], "prNeeds": ["Industry leadership PR in finance and tech", "Customer success stories and case studies"], turnover: "Not readily available" },
+            { id: 34, "name": "Intel", "country": "US", "sector": "Electronics", "expansionType": "Existing Operations", "summary": "Long-standing R&D and design presence in India, contributing to global chip development and fostering the local tech ecosystem.", "marketingNeeds": ["B2B marketing to OEMs and device manufacturers", "Consumer-facing 'Intel Inside' brand marketing"], "prNeeds": ["Innovation and R&D leadership PR", "Ecosystem development and startup engagement PR"], turnover: "Not readily available" },
+            { id: 35, "name": "American Express", "country": "US", "sector": "Financial Services", "expansionType": "Existing Operations", "summary": "Operates major financial centers and offers premium card services in India, targeting affluent consumers and corporations.", "marketingNeeds": ["Premium consumer marketing for card services", "B2B marketing for corporate card solutions", "Partnership marketing with luxury brands"], "prNeeds": ["Brand reputation for security and service", "Lifestyle and travel-focused PR"], turnover: "Not readily available" },
+            { id: 36, "name": "Ford Motor Company", "country": "US", "sector": "Automotive", "expansionType": "Existing Operations", "summary": "While it has ceased local manufacturing for domestic sale, Ford maintains a large business solutions and technology center in India for global operations.", "marketingNeeds": ["Internal marketing and communications"], "prNeeds": ["Employer branding to attract and retain tech and business talent", "Corporate presence communications"], turnover: "Not readily available" },
+            { id: 37, "name": "General Motors", "country": "US", "sector": "Automotive", "expansionType": "Existing Operations", "summary": "Similar to Ford, GM has shifted from domestic sales to maintaining a large technical and R&D center in Bangalore for global engineering and development.", "marketingNeeds": ["Internal and B2B marketing for engineering services"], "prNeeds": ["Employer branding for engineering talent", "Innovation and technology PR"], turnover: "Not readily available" },
+
+            { id: 38, "name": "HSBC", "country": "UK", "sector": "Financial Services", "expansionType": "Existing Operations", "summary": "With deep roots in both countries and as a strategic partner of UKIBC, HSBC is a key facilitator of UK-India trade and financial flows.", "marketingNeeds": ["B2B financial services marketing for trade finance", "Wealth management marketing for HNWIs", "Corporate banking solutions"], "prNeeds": ["Corporate communications on its role in bilateral trade", "Thought leadership on economic trends", "Brand trust and stability PR"], turnover: "Not readily available" },
+            { id: 39, "name": "Standard Chartered", "country": "UK", "sector": "Financial Services", "expansionType": "Existing Operations", "summary": "A major international bank with a strong presence in India, offering retail, commercial, and institutional banking services.", "marketingNeeds": ["B2C and B2B financial services marketing", "Digital banking promotion", "Wealth management services marketing"], "prNeeds": ["Corporate presence and stability PR", "Digital innovation in banking PR", "Community investment and CSR programs"], turnover: "Not readily available" },
+            { id: 40, "name": "JCB", "country": "UK", "sector": "Manufacturing", "expansionType": "Existing Operations", "summary": "A dominant player in India's construction and agricultural equipment market, with multiple manufacturing plants in the country.", "marketingNeeds": ["B2B industrial marketing to construction and agriculture sectors", "Dealer network marketing and support"], "prNeeds": ["Industrial leadership PR", "PR highlighting local manufacturing and 'Make in India' contribution", "Community relations around plant locations"], turnover: "Not readily available" },
+            { id: 41, "name": "Unilever", "country": "UK", "sector": "Consumer Goods", "expansionType": "Existing Operations", "summary": "Through its Indian subsidiary, Hindustan Unilever Ltd. (HUL), it is one of the largest FMCG companies in the country with a vast portfolio.", "marketingNeeds": ["Mass consumer marketing for a wide range of brands", "Rural marketing initiatives", "Digital and e-commerce marketing"], "prNeeds": ["Corporate reputation and sustainability PR (e.g., water conservation)", "Brand PR for dozens of individual product lines", "Public health and hygiene campaigns"], turnover: "Not readily available" },
+            { id: 42, "name": "Cadbury", "country": "UK", "sector": "Food & Drink", "expansionType": "Existing Operations", "summary": "A beloved and market-leading confectionery brand in India (owned by US-based Mondelez, but with strong UK heritage).", "marketingNeeds": ["Mass consumer advertising, especially during festivals", "Product launch campaigns for new variants", "Retail and trade marketing"], "prNeeds": ["Brand activation and emotional connection PR", "Nostalgia and heritage-based storytelling"], turnover: "Not readily available" },
+            { id: 43, "name": "PwC", "country": "UK", "sector": "Professional Services", "expansionType": "Existing Operations", "summary": "A 'Big Four' accounting and professional services firm with a major presence in India, serving local and multinational clients.", "marketingNeeds": ["B2B marketing for audit, tax, and advisory services", "Thought leadership content (reports, surveys)"], "prNeeds": ["Corporate reputation and expertise PR", "Media relations with business and financial press", "Talent acquisition and employer branding"], turnover: "Not readily available" },
+            { id: 44, "name": "Burberry", "country": "UK", "sector": "Retail (Fashion)", "expansionType": "Expansion", "summary": "A premium luxury British brand already present in India, expected to expand its retail footprint and offerings due to FTA benefits.", "marketingNeeds": ["Sophisticated luxury brand management", "Experiential retail and VIP client events", "High-end digital marketing and content"], "prNeeds": ["Maintaining brand exclusivity and desirability", "PR around new store openings and collections"], turnover: "Not readily available" },
+            { id: 45, "name": "Next", "country": "UK", "sector": "Retail (Fashion)", "expansionType": "Expansion", "summary": "Already selling in India, the popular fashion and home products retailer is expected to expand its business due to favorable FTA terms.", "marketingNeeds": ["Omni-channel marketing to drive online and offline sales", "Seasonal and festival-themed campaigns"], "prNeeds": ["PR highlighting new collections and value propositions post-FTA", "Brand visibility in lifestyle media"], turnover: "Not readily available" },
+            { id: 46, name: "Meta", country: "US", sector: "Technology", expansionType: "Existing Operations", summary: "Significant presence with platforms like Facebook, Instagram, and WhatsApp being central to India's digital life. Focus on creator economy and business solutions.", marketingNeeds: ["Digital advertising solutions for businesses of all sizes", "Marketing to promote creator tools and monetization"], prNeeds: ["Corporate presence and policy communications", "Data privacy and safety PR", "Community-building initiatives PR"], turnover: "Not readily available" },
+            { id: 47, name: "Boeing India", country: "US", sector: "Aerospace", expansionType: "Existing Operations", summary: "Major partner in India's aerospace sector, supplying commercial aircraft and defense products, with growing engineering and R&D presence.", marketingNeeds: ["B2B marketing to airlines and defense sector", "Partnership marketing with local suppliers"], prNeeds: ["Government relations and defense partnership PR", "PR on local manufacturing and skill development", "Corporate citizenship programs"], turnover: "Not readily available" },
+            { id: 48, name: "GE Aerospace", country: "US", sector: "Aerospace", expansionType: "Existing Operations", summary: "Provides jet engines and services for many Indian airlines, with a large technology center in Bangalore contributing to global R&D.", marketingNeeds: ["B2B marketing for aviation engines and services"], prNeeds: ["Technology and innovation PR", "Corporate presence and long-term partnership communications"], turnover: "Not readily available" },
+            { id: 49, name: "Western Digital", country: "US", sector: "Technology", expansionType: "Existing Operations", summary: "A key player in India's data storage market, offering products for both consumers and enterprise clients.", marketingNeeds: ["B2C marketing for consumer storage products (SSDs, HDDs)", "B2B marketing for data center and enterprise solutions"], prNeeds: ["Corporate presence and data security PR", "Product reviews and tech influencer engagement"], turnover: "Not readily available" },
+            { id: 50, name: "Amway", country: "US", sector: "Consumer Goods", expansionType: "Existing Operations", summary: "A major direct-selling company in India with a focus on health, beauty, and home care products.", marketingNeeds: ["Consumer marketing and product education", "Marketing support for direct sellers/distributors"], prNeeds: ["Corporate reputation management", "Community relations and entrepreneurship promotion PR"], turnover: "Not readily available" },
+            { id: 51, name: "Cognizant", country: "US", sector: "Technology", expansionType: "Existing Operations", summary: "While headquartered in the US, a vast majority of its workforce is based in India, making it a major IT services employer.", marketingNeeds: ["B2B IT services marketing", "Digital transformation solutions marketing"], prNeeds: ["Large-scale employer branding and talent acquisition", "Corporate citizenship and thought leadership"], turnover: "Not readily available" },
+            { id: 52, name: "McDonald's", country: "US", sector: "Retail (F&B)", expansionType: "Existing Operations", summary: "A leading fast-food chain with extensive operations and a highly localized menu to cater to Indian tastes.", marketingNeeds: ["Mass consumer marketing and advertising", "Localized menu promotions and value offers", "Digital marketing for delivery services"], prNeeds: ["Brand activations and community engagement", "Food quality and safety communications"], turnover: "Not readily available" },
+            { id: 53, name: "Pizza Hut", country: "US", sector: "Retail (F&B)", expansionType: "Existing Operations", summary: "A major pizza chain in India, constantly innovating its menu and expanding its delivery and dine-in network.", marketingNeeds: ["Product launch marketing for new pizza varieties", "Consumer promotions and digital marketing", "Partnership with delivery aggregators"], prNeeds: ["Brand activations and consumer engagement PR", "Local store marketing support"], turnover: "Not readily available" },
+            { id: 54, name: "Whirlpool", country: "US", sector: "Consumer Goods", expansionType: "Existing Operations", summary: "A well-established home appliance brand in India, offering a wide range of products like refrigerators and washing machines.", marketingNeeds: ["Consumer marketing through traditional and digital channels", "Product launch campaigns for new appliance models", "Trade marketing with retailers"], prNeeds: ["Brand awareness and reliability PR", "Product reviews and feature-focused PR"], turnover: "Not readily available" },
+            { id: 55, name: "Barclays Bank", country: "UK", sector: "Financial Services", expansionType: "Existing Operations", summary: "Prominent British multinational bank with global operations, including corporate and investment banking services in India.", marketingNeeds: ["B2B marketing for corporate and investment banking", "Financial solutions marketing to large corporations"], prNeeds: ["Corporate reputation and stability PR", "Thought leadership in finance and investment"], turnover: "Not readily available" },
+            { id: 56, name: "BP", country: "UK", sector: "Energy", expansionType: "Existing Operations", summary: "Global energy company with a growing presence in India, including partnerships in gas, lubricants (Castrol), and mobility solutions.", marketingNeeds: ["B2B energy solutions marketing", "B2C marketing for Castrol lubricants", "Retail marketing for fuel stations (with partners)"], prNeeds: ["Corporate reputation and sustainability PR", "Partnership announcements", "Safety and operational excellence communications"], turnover: "Not readily available" },
+            { id: 57, name: "Shell", country: "UK", sector: "Energy", expansionType: "Existing Operations", summary: "Global energy company with a retail fuel network, lubricant business, and technology center in India.", marketingNeeds: ["B2C retail marketing for fuel and convenience stores", "B2B marketing for lubricants and industrial solutions"], prNeeds: ["Corporate reputation and energy transition PR", "Technology and innovation PR from its Bangalore center"], turnover: "Not readily available" },
+            { id: 58, name: "Arm", country: "UK", sector: "Technology", expansionType: "Existing Operations", summary: "Global semiconductor IP company with a significant design center in India, crucial for the mobile and IoT ecosystem.", marketingNeeds: ["B2B technology marketing to chip designers and device OEMs", "Ecosystem and developer marketing"], prNeeds: ["Industry leadership and innovation PR", "Talent branding for specialized engineers"], turnover: "Not readily available" },
+            { id: 59, name: "Tesco", country: "UK", sector: "Retail", expansionType: "Existing Operations", summary: "Operates a large business services and technology center in Bangalore, supporting its global retail operations.", marketingNeeds: ["Internal marketing and communications"], prNeeds: ["Employer branding to attract retail tech and analytics talent", "Corporate presence communications"], turnover: "Not readily available" },
+            { id: 60, name: "Aston Martin", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "Ultra-luxury car brand likely to benefit from significantly reduced import duties under the FTA, potentially increasing imports and presence.", marketingNeeds: ["Ultra-luxury branding and marketing", "Targeted marketing to High-Net-Worth Individuals (HNWIs)"], prNeeds: ["PR to announce new model availability and pricing post-FTA", "Maintaining brand exclusivity"], turnover: "Not readily available" },
+            { id: 61, name: "McLaren", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "High-performance luxury sports car manufacturer poised to leverage FTA benefits to make its vehicles more accessible to Indian buyers.", marketingNeeds: ["Performance and luxury-focused marketing", "Experiential marketing (test drives, exclusive drives)"], prNeeds: ["Product availability and performance-focused PR", "Building a community of owners and enthusiasts"], turnover: "Not readily available" },
+            { id: 62, name: "Lotus", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "Iconic sports car brand set to benefit from reduced import duties, enabling it to expand its niche market in India.", marketingNeeds: ["Brand marketing focused on heritage and performance", "Targeted digital marketing to sports car enthusiasts"], prNeeds: ["PR for new model launches in India", "Brand storytelling and heritage PR"], turnover: "Not readily available" },
+            { id: 63, name: "Bentley", country: "UK", sector: "Automotive", expansionType: "Expansion", summary: "Ultra-luxury automotive brand that will see improved price competitiveness for its UK-made models due to the FTA.", marketingNeeds: ["Ultra-luxury marketing focused on craftsmanship and personalization", "Exclusive client events and previews"], prNeeds: ["PR communicating new pricing and availability", "Lifestyle and luxury media outreach"], turnover: "Not readily available" },
+            { id: 64, name: "Karen Millen", country: "UK", sector: "Retail (Fashion)", expansionType: "New Entry", summary: "The premium fashion brand has announced and implemented its expansion into India, likely through online channels.", marketingNeeds: ["Brand launch and awareness campaigns", "Digital marketing targeting affluent female consumers", "Fashion PR and influencer collaborations"], prNeeds: ["New market entry PR", "Positioning as a premium international brand"], turnover: "Not readily available" },
+            { id: 65, name: "Zerowatt Energy", country: "UK", sector: "Clean Tech/AI", expansionType: "New Entry", summary: "An AI-powered energy intelligence platform investing in the UK, with a global expansion strategy that could extend to India's renewable sector.", marketingNeeds: ["B2B marketing to energy companies, large industrials, and utilities"], prNeeds: ["Sustainability and innovation PR", "Thought leadership on AI in the energy transition"], turnover: "Not readily available" },
+            { id: 66, name: "Johnson Matthey", country: "UK", sector: "Chemicals/Engineering", expansionType: "Major Investment", summary: "Secured contracts and is investing £4M in a new plant in Taloja, Maharashtra, for specialty chemicals.", marketingNeeds: ["B2B industrial marketing to chemical and pharma sectors"], prNeeds: ["Corporate communications about the new investment", "Government and community relations for the new plant"], turnover: "Not readily available" },
+            { id: 67, name: "Marcus Evans Group", country: "UK", sector: "Business Intelligence", expansionType: "New Entry", summary: "Established a new Global Technology office in Mumbai to support its global business intelligence and events operations.", marketingNeeds: ["B2B marketing for its summits and business intelligence products", "Lead generation for event attendees"], prNeeds: ["Corporate PR for the new office announcement", "Talent acquisition PR for the Mumbai tech office"], turnover: "Not readily available" },
+            { id: 68, name: "Allied Digital", country: "UK", sector: "Technology", expansionType: "Expansion", summary: "Strategically expanding its UK operations, which points to a strengthened UK-India corridor and potential for more service delivery from India.", marketingNeeds: ["B2B IT services marketing", "Digital transformation solutions marketing"], prNeeds: ["Corporate growth PR", "Talent acquisition and employer branding in India"], turnover: "Not readily available" },
+            { id: 69, name: "Sanvi Industries (Sinar Technology)", country: "UK", sector: "Agri-Tech", expansionType: "New Entry", summary: "Investing £4.6M in agri-tech R&D and launching new moisture meters, with high relevance for India's large agricultural sector.", marketingNeeds: ["B2B agri-tech marketing to agribusinesses and large farms", "Product launch marketing for new devices"], prNeeds: ["Innovation PR focused on R&D", "PR on improving agricultural efficiency"], turnover: "Not readily available" },
+            { id: 70, name: "Wipro IT Services UK", country: "UK", sector: "IT Services", expansionType: "Existing Operations", summary: "As one of the fastest-growing Indian-owned companies in the UK, it signifies strong bilateral operations and service delivery.", marketingNeeds: ["B2B IT services marketing in both UK and India"], prNeeds: ["Corporate growth PR", "Bilateral trade success stories", "Talent acquisition"], turnover: "Not readily available" },
+            { id: 71, name: "Zoho Corporation", country: "UK", sector: "IT Services", expansionType: "Existing Operations", summary: "A major Indian SaaS company with a growing presence in the UK, indicating strong cross-border business focus.", marketingNeeds: ["B2B marketing for its suite of SaaS products", "Content marketing and webinars for SMEs"], prNeeds: ["New market penetration PR", "Customer success stories"], turnover: "Not readily available" },
+            { id: 72, name: "Lupin Healthcare (UK)", country: "UK", sector: "Pharma/Healthcare", expansionType: "Existing Operations", summary: "The UK arm of the major Indian pharmaceutical company, indicating a strong presence in the UK/EU market supplied from India.", marketingNeeds: ["B2B pharma marketing to healthcare systems"], prNeeds: ["Regulatory and compliance PR", "Supply chain and corporate presence PR"], turnover: "Not readily available" },
+            { id: 73, name: "KPIT Technologies (UK)", country: "UK", sector: "Technology", expansionType: "Existing Operations", summary: "Indian IT company focused on automotive engineering and mobility solutions with a UK presence to serve European clients.", marketingNeeds: ["B2B marketing to automotive OEMs and Tier-1 suppliers"], prNeeds: ["Innovation PR in automotive tech", "Partnership announcements with car manufacturers"], turnover: "Not readily available" },
+            { id: 74, name: "Coforge U.K.", country: "UK", sector: "IT Services", expansionType: "Existing Operations", summary: "Indian IT services company with a UK base to serve clients in the region, indicating strong UK-India business.", marketingNeeds: ["B2B IT services marketing, particularly in financial services and travel"], prNeeds: ["Corporate growth PR", "Client acquisition announcements"], turnover: "Not readily available" },
+            { id: 75, name: "Glenmark Pharma Europe", country: "UK", sector: "Pharma/Healthcare", expansionType: "Existing Operations", summary: "The European operations of the Indian pharma major, highlighting the UK as a hub for the European market.", marketingNeeds: ["B2B marketing for generic and specialty pharmaceuticals"], prNeeds: ["Corporate and regulatory PR across Europe", "Product launch PR"], turnover: "Not readily available" },
+            { id: 76, name: "Nasdaq", country: "US", sector: "Financial Services", expansionType: "Strategic Interest", summary: "As a USIBC board member, Nasdaq shows strategic interest in India's growing financial markets and tech startup ecosystem.", marketingNeeds: ["B2B marketing to Indian companies considering a US listing", "Brand building within the Indian financial community"], prNeeds: ["Thought leadership on capital markets", "Partnership PR with Indian exchanges or institutions"], turnover: "Not readily available" },
+            { id: 77, name: "Coinbase", country: "US", sector: "Financial Services", expansionType: "Strategic Interest", summary: "Presence on the USIBC board indicates a long-term interest in India's digital asset and cryptocurrency market, despite regulatory hurdles.", marketingNeeds: ["Consumer marketing to build brand awareness", "Educational content on crypto assets"], prNeeds: ["Public affairs and regulatory communications", "Brand trust and security PR"], turnover: "Not readily available" },
+            { id: 78, name: "Morgan Stanley", country: "US", sector: "Financial Services", expansionType: "Existing Operations", summary: "A major global investment bank with significant operations in India, including investment banking, wealth management, and research.", marketingNeeds: ["B2B marketing for investment banking services", "High-net-worth marketing for wealth management"], prNeeds: ["Market insights and economic research PR", "Corporate presence and deal announcement PR"], turnover: "Not readily available" },
+            { id: 79, name: "Carrier", country: "US", sector: "Manufacturing", expansionType: "Existing Operations", summary: "A leading provider of HVAC, refrigeration, and building technologies with a manufacturing and sales presence in India.", marketingNeeds: ["B2B industrial marketing to construction and real estate sectors", "Channel partner marketing"], prNeeds: ["Sustainability and green building technology PR", "Corporate presence and operational excellence PR"], turnover: "Not readily available" },
+            { id: 80, name: "Applied Materials", country: "US", sector: "Manufacturing", expansionType: "Existing Operations", summary: "A key supplier of equipment and software for the semiconductor industry, supporting India's growing ambitions in chip manufacturing.", marketingNeeds: ["High-level B2B marketing to semiconductor manufacturers"], prNeeds: ["Industry leadership PR", "PR supporting the 'Make in India' semiconductor mission", "Innovation comms"], turnover: "Not readily available" },
+            { id: 81, name: "Occidental", country: "US", sector: "Energy", expansionType: "Strategic Interest", summary: "As a USIBC board member, the major oil & gas company maintains a strategic watch over India's large energy market.", marketingNeeds: ["B2B energy sector marketing"], prNeeds: ["Corporate presence and sustainability PR", "Thought leadership on energy transition"], turnover: "Not readily available" },
+            { id: 82, name: "Chevron", country: "US", sector: "Energy", expansionType: "Existing Operations", summary: "Operates a technology center in India and has interests in the country's energy sector.", marketingNeeds: ["B2B marketing for lubricants and energy solutions"], prNeeds: ["Corporate presence and R&D innovation PR", "Energy transition and sustainability communications"], turnover: "Not readily available" },
+            { id: 83, name: "UPS", country: "US", sector: "Logistics", expansionType: "Existing Operations", summary: "A major global logistics and shipping company with extensive operations in India, supporting domestic and international trade.", marketingNeeds: ["B2B logistics services marketing to businesses of all sizes", "Marketing for specialized services (e.g., healthcare logistics)"], prNeeds: ["Corporate presence and efficiency PR", "Trade facilitation and e-commerce growth PR"], turnover: "Not readily available" },
+            { id: 84, name: "FedEx", country: "US", sector: "Logistics", expansionType: "Existing Operations", summary: "A key competitor to UPS, FedEx has a strong network in India for express shipping and supply chain solutions.", marketingNeeds: ["B2B marketing for shipping and logistics services", "SME-focused marketing programs"], prNeeds: ["Network expansion and service enhancement PR", "Reliability and speed-focused communications"], turnover: "Not readily available" },
+            { id: 85, name: "General Atomics", country: "US", sector: "Defense", expansionType: "Strategic Interest", summary: "A leading defense contractor, showing interest in India through USIBC, likely focused on high-tech defense sales like drones.", marketingNeeds: ["High-level B2B marketing to the defense ministry and armed forces"], prNeeds: ["Government relations and defense partnership PR", "Technology and strategic advantage communications"], turnover: "Not readily available" },
+            { id: 86, name: "Pernod Ricard", country: "UK", sector: "Food & Drink", expansionType: "Existing Operations", summary: "A major global spirits company (parent of Chivas Brothers) with a huge portfolio and deep market penetration in India.", marketingNeeds: ["Brand marketing for a diverse portfolio of spirits", "Premiumization campaigns", "Retail and on-trade marketing"], prNeeds: ["Industry relations and public affairs", "Responsible drinking campaigns", "Corporate brand PR"], turnover: "Not readily available" },
+            { id: 87, name: "Anglo American", country: "UK", sector: "Mining", expansionType: "Strategic Interest", summary: "A global mining giant and UKIBC partner, with strategic interests in India's vast mineral and resource sector.", marketingNeeds: ["B2B industrial marketing for raw materials"], prNeeds: ["Corporate responsibility and sustainable mining PR", "Stakeholder and government relations"], turnover: "Not readily available" },
+            { id: 88, name: "RELX India", country: "UK", sector: "Information/Analytics", expansionType: "Existing Operations", summary: "The Indian arm of the global provider of information-based analytics and decision tools for professional and business customers.", marketingNeeds: ["B2B marketing for data and analytics solutions to legal, risk, and scientific sectors"], prNeeds: ["Thought leadership and data insights PR", "Industry-specific expertise communications"], turnover: "Not readily available" },
+            { id: 89, name: "G4S Secure Solutions", country: "UK", sector: "Security Services", expansionType: "Existing Operations", summary: "A major multinational security services company with a large workforce and extensive operations across India.", marketingNeeds: ["B2B marketing for security solutions and services", "Marketing targeting specific sectors like aviation, banking, etc."], prNeeds: ["Corporate presence and trust-building PR", "Safety and reliability communications", "Labor relations PR"], turnover: "Not readily available" },
+            { id: 90, name: "Cairn Energy", country: "UK", sector: "Energy", expansionType: "Existing Operations", summary: "A British oil and gas exploration company with a long and sometimes complex history of operations and investments in India.", marketingNeeds: ["B2B energy sector marketing"], prNeeds: ["Investor and government relations", "Corporate presence and project updates PR", "Reputation management"], turnover: "Not readily available" },
+            { id: 91, name: "Capita India", country: "UK", sector: "IT/BPO Services", expansionType: "Existing Operations", summary: "The Indian delivery arm of the UK's leading business process outsourcing and professional services company.", marketingNeeds: ["B2B services marketing to UK and global clients"], prNeeds: ["Employer branding in India", "Operational excellence and service delivery PR"], turnover: "Not readily available" },
+            { id: 92, name: "Vodafone", country: "UK", sector: "Telecommunications", expansionType: "Existing Operations", summary: "Though its direct stake in the Indian telecom market has evolved (now Vodafone Idea), the Vodafone brand and its technology influence remain significant.", marketingNeeds: ["B2C/B2B telecom marketing (via Vi)", "Enterprise solutions marketing"], prNeeds: ["Corporate partnership PR", "Network and technology leadership communications"], turnover: "Not readily available" },
+            { id: 93, "name": "Schneider Electric", "country": "US", "sector": "Manufacturing", "expansionType": "Major Investment", "summary": "French company with major US presence, took full ownership of its Indian JV for $6.4B, making India a global hub with 31 factories and plans to triple capacity.", "marketingNeeds": ["B2B marketing for energy management and automation solutions", "Industrial branding", "Digital engagement for smart factory solutions"], "prNeeds": ["Corporate positioning after major acquisition", "Public affairs for large-scale investment", "Stakeholder communications on expansion"], turnover: "Not readily available" },
+            { id: 94, "name": "Biogen", "country": "US", "sector": "Pharma/Healthcare", "expansionType": "Strategic Interest", "summary": "Major US biotech firm focused on neurological diseases. India's large patient pool and R&D talent present a strategic opportunity.", "marketingNeeds": ["B2B engagement with neurologists and specialized hospitals", "Patient education programs"], "prNeeds": ["Regulatory PR for new drug approvals", "R&D and clinical trial PR"], turnover: "Not readily available" },
+            { id: 95, "name": "Vertex Pharmaceuticals", "country": "US", "sector": "Pharma/Healthcare", "expansionType": "Strategic Interest", "summary": "A leader in cystic fibrosis treatments. Expansion into India would involve navigating access and pricing for specialty drugs.", "marketingNeeds": ["Medical education for specialists", "Patient advocacy group engagement"], "prNeeds": ["Public affairs on access to innovative medicines", "Corporate reputation for scientific leadership"], turnover: "Not readily available" },
+            { id: 96, "name": "Qualcomm", "country": "US", "sector": "Technology", "expansionType": "Existing Operations", "summary": "A world leader in wireless technology, its Snapdragon processors power a vast number of smartphones in India. Deeply integrated into the mobile ecosystem.", "marketingNeeds": ["B2B marketing to smartphone OEMs", "Ingredient branding ('Snapdragon powered')", "Developer relations for its platforms"], "prNeeds": ["Technology leadership PR (5G, AI)", "Ecosystem partnership announcements", "Innovation from its Indian design centers"], turnover: "Not readily available" },
+            { id: 97, "name": "Nvidia", "country": "US", "sector": "Technology", "expansionType": "Existing Operations", "summary": "Leader in GPUs for gaming and AI. India is a key market for its gaming cards and a growing hub for AI development, where Nvidia's platforms are critical.", "marketingNeeds": ["Consumer marketing to gamers and creators", "B2B marketing for AI and data center solutions", "Developer marketing for CUDA platform"], "prNeeds": ["AI thought leadership", "Gaming community engagement", "PR for its role in India's AI stack"], turnover: "Not readily available" },
+            { id: 98, "name": "Starbucks", "country": "US", "sector": "Retail (F&B)", "expansionType": "Existing Operations", "summary": "Operates in India through a 50:50 joint venture with Tata Consumer Products, continuously expanding its store count in major cities.", "marketingNeeds": ["Premium consumer and lifestyle marketing", "Localized beverage and food promotions", "Digital marketing and loyalty program (My Starbucks Rewards)"], "prNeeds": ["Brand experience and 'third place' PR", "Partnership PR with Tata", "New store opening announcements"], turnover: "Not readily available" },
+            { id: 99, "name": "Dyson", "country": "UK", "sector": "Consumer Goods", "expansionType": "Expansion", "summary": "British technology company known for high-end home appliances like vacuum cleaners, air purifiers, and hair dryers. Expanding its retail and online presence in India.", "marketingNeeds": ["Premium product marketing emphasizing technology and design", "Experiential marketing through demo stores", "Digital marketing targeting affluent consumers"], "prNeeds": ["Technology and innovation PR", "Product reviews in tech and lifestyle media", "Brand positioning as a premium, innovative brand"], turnover: "Not readily available" },
+            { id: 100, "name": "Reckitt", "country": "UK", "sector": "Consumer Goods", "expansionType": "Existing Operations", "summary": "A major player in India's health, hygiene, and nutrition sectors with iconic brands like Dettol, Harpic, and Lysol.", "marketingNeeds": ["Mass consumer marketing for health and hygiene products", "Public health educational campaigns", "Digital content marketing"], "prNeeds": ["Public health and social cause PR (e.g., hygiene awareness)", "Corporate reputation", "Brand trust and efficacy communications"], turnover: "Not readily available" },
+            { id: 101, "name": "GSK (GlaxoSmithKline)", "country": "UK", "sector": "Pharma/Healthcare", "expansionType": "Existing Operations", "summary": "Significant presence in India through its pharmaceutical and consumer healthcare businesses (e.g., Sensodyne, Horlicks).", "marketingNeeds": ["Consumer healthcare brand marketing", "B2B marketing to healthcare professionals for vaccines and pharmaceuticals"], "prNeeds": ["Public health campaigns (e.g., vaccination awareness)", "Corporate reputation", "Scientific communications"], turnover: "Not readily available" }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const countryFilter = document.getElementById('country-filter');
+            const sectorFilter = document.getElementById('sector-filter');
+            const searchInput = document.getElementById('search-input');
+            const companyGrid = document.getElementById('company-grid');
+            const noResults = document.getElementById('no-results');
+            const resultsCount = document.getElementById('results-count');
+            
+            const totalCompaniesEl = document.getElementById('total-companies');
+            const usCompaniesEl = document.getElementById('us-companies');
+            const ukCompaniesEl = document.getElementById('uk-companies');
+
+            const modal = document.getElementById('company-modal');
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const modalClose = document.getElementById('modal-close');
+            const modalBody = document.getElementById('modal-body');
+
+            let sectorChart;
+
+            function populateSectors() {
+                const sectors = [...new Set(companyData.map(c => c.sector))].sort();
+                sectors.forEach(sector => {
+                    const option = document.createElement('option');
+                    option.value = sector;
+                    option.textContent = sector;
+                    sectorFilter.appendChild(option);
+                });
+            }
+
+            function renderCompanies(filteredData) {
+                companyGrid.innerHTML = '';
+                if (filteredData.length === 0) {
+                    noResults.classList.remove('hidden');
+                    resultsCount.textContent = 'Showing 0 results.';
+                } else {
+                    noResults.classList.add('hidden');
+                    resultsCount.textContent = `Showing ${filteredData.length} results.`;
+                }
+
+                filteredData.forEach(company => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-lg shadow-md p-4 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer fade-in';
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <span class="text-2xl mr-2">${company.country === 'US' ? '🇺🇸' : '🇬🇧'}</span>
+                                <h3 class="text-lg font-bold text-slate-800">${company.name}</h3>
+                            </div>
+                            <p class="text-sm text-slate-600 bg-slate-100 inline-block px-2 py-1 rounded-full">${company.sector}</p>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-3">${company.expansionType}</p>
+                    `;
+                    card.addEventListener('click', () => openModal(company));
+                    companyGrid.appendChild(card);
+                });
+            }
+
+            function updateDashboardMetrics(filteredData) {
+                totalCompaniesEl.textContent = filteredData.length;
+                usCompaniesEl.textContent = filteredData.filter(c => c.country === 'US').length;
+                ukCompaniesEl.textContent = filteredData.filter(c => c.country === 'UK').length;
+            }
+
+            function filterAndRender() {
+                const country = countryFilter.value;
+                const sector = sectorFilter.value;
+                const search = searchInput.value.toLowerCase();
+
+                const filtered = companyData.filter(c => {
+                    const countryMatch = country === 'all' || c.country === country;
+                    const sectorMatch = sector === 'all' || c.sector === sector;
+                    const searchMatch = c.name.toLowerCase().includes(search);
+                    return countryMatch && sectorMatch && searchMatch;
+                });
+
+                renderCompanies(filtered);
+                updateDashboardMetrics(filtered);
+                updateChart(companyData.filter(c => country === 'all' || c.country === c.country));
+            }
+            
+            function openModal(company) {
+                modalBody.innerHTML = `
+                    <div class="flex items-center mb-4">
+                        <span class="text-4xl mr-3">${company.country === 'US' ? '🇺🇸' : '🇬🇧'}</span>
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900">${company.name}</h2>
+                            <p class="text-md text-slate-600">${company.sector} / ${company.expansionType}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-4 text-slate-700">
+                        <div>
+                            <h4 class="font-semibold text-slate-800 border-b pb-1 mb-2">Global Turnover</h4>
+                            <p>${company.turnover}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-800 border-b pb-1 mb-2">Expansion Summary</h4>
+                            <p>${company.summary}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-800 border-b pb-1 mb-2">Implied Marketing Needs</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                ${company.marketingNeeds.map(need => `<li>${need}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-800 border-b pb-1 mb-2">Implied PR Needs</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                ${company.prNeeds.map(need => `<li>${need}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                modal.classList.remove('hidden');
+                modalBackdrop.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                
+                const content = document.getElementById('modal-content');
+                content.classList.remove('modal-leave', 'modal-leave-active');
+                content.classList.add('modal-enter', 'modal-enter-active');
+            }
+
+            function closeModal() {
+                const content = document.getElementById('modal-content');
+                content.classList.remove('modal-enter', 'modal-enter-active');
+                content.classList.add('modal-leave', 'modal-leave-active');
+                
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modalBackdrop.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }, 300);
+            }
+
+            function createChart() {
+                const ctx = document.getElementById('sector-chart').getContext('2d');
+                sectorChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'US Companies',
+                            data: [],
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'UK Companies',
+                            data: [],
+                            backgroundColor: 'rgba(220, 38, 38, 0.7)',
+                            borderColor: 'rgba(220, 38, 38, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Companies'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: {
+                                    autoSkip: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateChart(data) {
+                const country = countryFilter.value;
+                const sectors = [...new Set(data.map(c => c.sector))].sort();
+                
+                const usData = sectors.map(sector => 
+                    data.filter(c => c.sector === sector && c.country === 'US').length
+                );
+                const ukData = sectors.map(sector => 
+                    data.filter(c => c.sector === sector && c.country === 'UK').length
+                );
+
+                sectorChart.data.labels = sectors;
+                sectorChart.data.datasets[0].data = usData;
+                sectorChart.data.datasets[1].data = ukData;
+                
+                sectorChart.data.datasets[0].hidden = (country === 'UK');
+                sectorChart.data.datasets[1].hidden = (country === 'US');
+
+                sectorChart.update();
+            }
+
+            countryFilter.addEventListener('change', filterAndRender);
+            sectorFilter.addEventListener('change', filterAndRender);
+            searchInput.addEventListener('input', filterAndRender);
+            modalClose.addEventListener('click', closeModal);
+            modalBackdrop.addEventListener('click', closeModal);
+            
+            document.querySelectorAll('.accordion-header').forEach(button => {
+                button.addEventListener('click', () => {
+                    const content = button.nextElementSibling;
+                    const icon = button.querySelector('.accordion-icon');
+                    
+                    if (content.style.maxHeight) {
+                        content.style.maxHeight = null;
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        document.querySelectorAll('.accordion-content').forEach(item => item.style.maxHeight = null);
+                        document.querySelectorAll('.accordion-icon').forEach(item => item.style.transform = 'rotate(0deg)');
+                        content.style.maxHeight = content.scrollHeight + "px";
+                        icon.style.transform = 'rotate(180deg)';
+                    }
+                });
+            });
+
+            populateSectors();
+            createChart();
+            filterAndRender();
+        });
+    </script>
+</body>
+</html>
